@@ -6,6 +6,7 @@ const dotenv = require("dotenv");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const moment = require('moment-timezone'); // Import moment-timezone
 const port = process.env.PORT || 5000;
 
 dotenv.config();
@@ -54,19 +55,22 @@ async function run() {
       res.send(result);
     });
 
-    app.post('/login', async (req,res) => {
+    app.post("/login", async (req, res) => {
       const user = req.body;
       console.log(user);
-      // find user 
+      // find user
       const query = { email: user.email };
       const existingUser = await usersCollection.findOne(query);
       console.log(existingUser);
-      if(!existingUser){
+      if (!existingUser) {
         return res.status(401).json({ message: "Invalid email or password" });
       }
       // compare password
-      const validPassword = bcrypt.compare(user.password, existingUser.password);
-      if(!validPassword){
+      const validPassword = bcrypt.compare(
+        user.password,
+        existingUser.password
+      );
+      if (!validPassword) {
         return res.status(401).json({ message: "Invalid email or password" });
       }
       res.json({ message: "Login successful" });
@@ -80,18 +84,19 @@ async function run() {
     // ---------------------------------------
     // ---------------------------------------
     // ---------------------------------------
-    // products related api creation start here 
+    // products related api creation start here
     // add products
     app.post("/products", async (req, res) => {
       try {
         const product = req.body;
+        console.log(product);
         // if (!product.name || !product.price || !product.quantity) {
         //   return res.status(400).json({ message: "All fields are required" });
         // }
         const result = await productsCollection.insertOne(product);
-        res.status(201).json({message: 'Product added succesfully', result});
+        res.status(201).json({ message: "Product added succesfully", result });
       } catch (error) {
-        res.status(500).json({message: "server error", error});
+        res.status(500).json({ message: "server error", error });
       }
       // const products = req.body;
       // console.log(products);
@@ -100,79 +105,109 @@ async function run() {
     });
 
     // product details api
-    app.get('/products/:id', async(req,res) =>{
+    app.get("/products/:id", async (req, res) => {
       const id = req.params.id;
       // console.log(id);
-      const query = {_id: new ObjectId(id)};
+      const query = { _id: new ObjectId(id) };
       const result = await productsCollection.findOne(query);
       res.send(result);
     });
 
-    // buy product reduce quantity
-    app.post('/products/buy', async(req,res) =>{
+    // buy product increase quantity
+    app.post("/products/buy", async (req, res) => {
       try {
-        const {uniqId,quantity} = req.body;
-        console.log(uniqId,quantity);
-        const query = await productsCollection.findOne({uniqId}); 
-        console.log(query);
-        // const product = await productsCollection.findOne(query);
-        // console.log(product);
-        // const date = new Date().toISOString().split("T")[0]; // Get YYYY-MM-DD format
+        const { uniqId, quantity } = req.body;
+        console.log(uniqId, quantity);
+        const product = await productsCollection.findOne({ uniqId });
+        console.log("Before", product.stockQuantity);
+        console.log("middle", product.stockQuantity + 10);
+        console.log("After", parseInt(product.stockQuantity) + 30);
 
-        // const product = await productsCollection.findOne();
-        // console.log(product);
-        // console.log(product.quantity);
+        if (!product) {
+        } else {
+          // Get current time in Bangladeshi local time (BST)
+          // const bdTime = moment().tz('Asia/Dhaka').toDate(); // Convert to Bangladeshi time
+          // console.log(bdTime);
+          const updateProduct = {
+            $set: { stockQuantity: product.stockQuantity + quantity },
+            $push: { buyHistory: { quantity, date: new Date() } },
+          };
 
-        // if (!product) return res.status(404).json({ message: "Product not found" });
+          // console.log(updateProduct);
 
-        // if(product.quantity < quantity){
-        //   return res.status(400).json({ message: "Not enough stock available" });
-        // }
-
-        // const update = {
-        //   $inc: { quantity: -quantity },
-        //   $push: { history: { type: "buy", quantity, date } }, // Store transaction
-        // };
-
-        // const result = await productsCollection.updateOne({ _id: new ObjectId(id) }, update);
-
-        // res.send(result);
-
-        // const updatedProduct = await productsCollection.updateOne(
-        //   // {_id: new ObjectId(productId)},
-        //   {$inc: {quantity: -quantity}}
-        // );
-
-        // res.json({ message: "Product purchased successfully", updatedProduct });
+          // update the product in the collection
+          await productsCollection.updateOne({ uniqId }, updateProduct);
+          product.stockQuantity += quantity; // Update the local product object for the response
+          product.buyHistory.push({ quantity, date: new Date() }); // Update the local product object for the response
+        }
+        res.status(200).json({ message: "Buy successful!", product });
       } catch (error) {
         res.status(500).json({ message: "Server error", error });
       }
     });
 
-    // Sell product (increase quantity)
-    app.put("/products/sell/:id", async (req, res) => {
+    // Sell product reduce quantity
+    app.post("/products/sell", async (req, res) => {
       try {
-        const productId = req.params.id;
-        const { quantity } = req.body;
-    
-        const updatedProduct = await productsCollection.updateOne(
-          { _id: new ObjectId(productId) },
-          { $inc: { quantity: quantity } }
-        );
-    
-        res.json({ message: "Product restocked successfully", updatedProduct });
+        const { uniqId, quantity } = req.body;
+        const product = await productsCollection.findOne({ uniqId });
+        console.log(product);
+
+        if (product) {
+          if (product.stockQuantity >= quantity) {
+            const updateProduct = {
+              $set: { stockQuantity: product.stockQuantity - quantity },
+              $push: { sellHistory: { quantity, date: new Date() } },
+            };
+            console.log(updateProduct);
+            // update the product in the collection
+            await productsCollection.updateOne({ uniqId }, updateProduct);
+            product.stockQuantity -= quantity; // Decrease stock quantity
+            product.sellHistory.push({ quantity, date: new Date() }); // Add to sell history
+          } else {
+            res.status(400).json({ message: "Insufficient stock" });
+          }
+        } else {
+          res.status(404).json({ message: "Product not found" });
+        }
+
+        // res.json({ message: "Product restocked successfully", updatedProduct });
       } catch (error) {
         res.status(500).json({ message: "Server error", error });
       }
     });
 
-    // see all products 
+    // product update api create 
+    app.put('/products/update/:id', async(req,res) =>{
+      try {
+        const id = req.params.id;
+        console.log(id);
+        const filter = { _id: new ObjectId(id) };
+        const options = {upsert: true};
+        console.log(filter);
+        const body = req.body;
+        console.log(body);
+      //   console.log(product);
+        const updatedProduct = {
+          $set: body
+        }
+        console.log(updatedProduct);
+
+      //   // Update the product in the collection
+      const result = await productsCollection.updateOne(filter,updatedProduct,options);
+      res.send(result);
+      } catch (error) {
+        
+      }
+    });
+
+    // see all products
     app.get("/products", async (req, res) => {
       const result = await productsCollection.find().toArray();
       res.send(result);
     });
 
-    // products related api creation end here 
+    // products related api creation end here
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
@@ -343,7 +378,3 @@ app.listen(port, () => {
 // app.listen(port, () => {
 //   console.log(`Server running on http://localhost:${port}`);
 // });
-
-
-
-
