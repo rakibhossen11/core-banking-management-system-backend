@@ -6,7 +6,7 @@ const dotenv = require("dotenv");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
-const moment = require('moment-timezone'); // Import moment-timezone
+const moment = require("moment-timezone"); // Import moment-timezone
 const port = process.env.PORT || 5000;
 
 dotenv.config();
@@ -43,16 +43,45 @@ async function run() {
       .db("coreBankingManagement")
       .collection("products");
 
-    app.post("/users", async (req, res) => {
-      const user = req.body;
-      const query = { email: user.email };
-      const existingUser = await usersCollection.findOne(query);
-      console.log(existingUser);
-      if (existingUser) {
-        res.send({ message: "user already exists" });
+    // user related api starts from here
+
+    app.post("/register", async (req, res) => {
+      try {
+        const { clientId, name, email, phone, password } = req.body;
+        console.log(clientId, name, email, phone, password);
+    
+        // Check if user already exists
+        const existingUser = await usersCollection.findOne({ email });
+        console.log(existingUser);
+
+        // let clientId = 'INCD' + 1;
+
+        if (existingUser) {
+          return res.status(400).json({ message: "User already exists!" });
+        }
+
+        // Hash password
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        let balance = 0 ;
+
+        // Save user to database
+        const newUser = {
+          clientId,
+          name,
+          email,
+          phone,
+          balance,
+          password: hashedPassword,
+        };
+        console.log(newUser);
+        const result = await usersCollection.insertOne(newUser);
+
+        res.json({ message: "User registered successfully!", result });
+      } catch (error) {
+        // res.status(500).json({ message: "server error", error });
       }
-      const result = await usersCollection.insertOne(user);
-      res.send(result);
     });
 
     app.post("/login", async (req, res) => {
@@ -80,6 +109,61 @@ async function run() {
       const result = await usersCollection.find().toArray();
       res.send(result);
     });
+
+    app.get("/users/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await usersCollection.findOne(query);
+      res.send(result);
+    });
+
+    // user transaction api
+    app.post("/users/transaction", async (req, res) => {
+      try {
+        const { clientId, amount, type, description } = req.body;
+        console.log(clientId, amount, type, description);
+
+        // valid transaction type
+        if(!['debit','credit'].includes(type)){
+          return res.status(400).json({ error: 'Invalid transaction type' });
+        }
+
+        // check if the client exists
+        const user = await usersCollection.findOne({ clientId });
+        console.log(user);
+
+        // find or create a balance document for the client
+        // let balance = await usersCollection.findOne({clientId});
+        // console.log("balance",balance);
+
+        // if(!balance || balance == NaN || balance == null){
+        //   balance = new balance({clientId, balance:0});
+        //   return 0;
+        // }
+
+        if(!user){
+
+        }else{
+          const bdTime = moment().tz('Asia/Dhaka').format('DD-MM-YYYY hh:mm A'); // Convert to Bangladeshi time
+          console.log(bdTime);
+
+          const updateUser = {
+            $set: {balance: parseFloat(user.balance) + parseFloat(amount) },
+            $push: {transaction: {amount, type, date: bdTime}}
+          };
+
+          console.log(updateUser);
+
+          // update the user in the collection
+          await usersCollection.updateOne({clientId}, updateUser);
+          // user.balance += amount;
+          // user.transaction.push({ amount, date: bdTime, })
+        }
+        res.status(200).json({ message: "Transaction successful!", updateUser });
+      } catch (error) {}
+    });
+
+    // user related api end from here
 
     // ---------------------------------------
     // ---------------------------------------
@@ -126,14 +210,16 @@ async function run() {
         if (!product) {
         } else {
           // Get current time in Bangladeshi local time (BST)
-          // const bdTime = moment().tz('Asia/Dhaka').toDate(); // Convert to Bangladeshi time
+          // const bdTime = moment(entry.date)
+          //   .tz("Asia/Dhaka")
+          //   .format("YYYY-MM-DD HH:mm:ss"); // Convert to Bangladeshi time
           // console.log(bdTime);
           const updateProduct = {
             $set: { stockQuantity: product.stockQuantity + quantity },
-            $push: { buyHistory: { quantity, date: new Date() } },
+            $push: { buyHistory: {quantity, date: new Date()} },
           };
 
-          // console.log(updateProduct);
+          console.log(updateProduct);
 
           // update the product in the collection
           await productsCollection.updateOne({ uniqId }, updateProduct);
@@ -177,28 +263,38 @@ async function run() {
       }
     });
 
-    // product update api create 
-    app.put('/products/update/:id', async(req,res) =>{
+    // product update api create
+    app.put("/products/update/:id", async (req, res) => {
       try {
         const id = req.params.id;
         console.log(id);
         const filter = { _id: new ObjectId(id) };
-        const options = {upsert: true};
+        const options = { upsert: true };
         console.log(filter);
         const body = req.body;
         console.log(body);
-      //   console.log(product);
+        //   console.log(product);
         const updatedProduct = {
-          $set: body
-        }
+          $set: body,
+        };
         console.log(updatedProduct);
 
-      //   // Update the product in the collection
-      const result = await productsCollection.updateOne(filter,updatedProduct,options);
+        //   // Update the product in the collection
+        const result = await productsCollection.updateOne(
+          filter,
+          updatedProduct,
+          options
+        );
+        res.send(result);
+      } catch (error) {}
+    });
+
+    // Delete a product
+    app.delete("/products/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await productsCollection.deleteOne(query);
       res.send(result);
-      } catch (error) {
-        
-      }
     });
 
     // see all products
@@ -228,153 +324,3 @@ app.get("/", (req, res) => {
 app.listen(port, () => {
   console.log(`Example app listening on port ${port}`);
 });
-
-// const express = require("express");
-// const app = express();
-// const cors = require("cors");
-// const bodyParser = require("body-parser");
-// const dotenv = require("dotenv");
-// const bcrypt = require("bcryptjs");
-// const jwt = require("jsonwebtoken");
-// const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
-
-// dotenv.config();
-// const port = process.env.PORT || 5000;
-
-// // Middleware
-// app.use(cors());
-// app.use(express.json());
-// app.use(bodyParser.json());
-
-// const uri =
-//   "mongodb+srv://coreBankingManagement:Doiz5Fm03ybZH7Qj@cluster0.0dt9tdk.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
-
-// const client = new MongoClient(uri, {
-//   serverApi: {
-//     version: ServerApiVersion.v1,
-//     strict: true,
-//     deprecationErrors: true,
-//   },
-// });
-
-// async function run() {
-//   try {
-//     await client.connect();
-
-//     const usersCollection = client
-//       .db("coreBankingManagement")
-//       .collection("users");
-//     const productsCollection = client
-//       .db("coreBankingManagement")
-//       .collection("products");
-
-//     // User Registration Route
-//     app.post("/register", async (req, res) => {
-//       const { name, email, password } = req.body;
-
-//       // Check if user already exists
-//       const existingUser = await usersCollection.findOne({ email });
-//       if (existingUser) {
-//         return res.status(400).json({ message: "User already exists!" });
-//       }
-
-//       // Hash password
-//       const salt = await bcrypt.genSalt(10);
-//       const hashedPassword = await bcrypt.hash(password, salt);
-
-//       // Save user to database
-//       const newUser = { name, email, password: hashedPassword };
-//       const result = await usersCollection.insertOne(newUser);
-
-//       res.json({ message: "User registered successfully!", result });
-//     });
-
-//     // User Login Route
-//     app.post("/login", async (req, res) => {
-//       const { email, password } = req.body;
-
-//       // Find user
-//       const user = await usersCollection.findOne({ email });
-//       if (!user) {
-//         return res.status(401).json({ message: "Invalid email or password" });
-//       }
-
-//       // Compare password
-//       const validPassword = await bcrypt.compare(password, user.password);
-//       if (!validPassword) {
-//         return res.status(401).json({ message: "Invalid email or password" });
-//       }
-
-//       // Generate JWT Token
-//       const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-//         expiresIn: "1h",
-//       });
-
-//       res.json({ message: "Login successful", token });
-//     });
-
-//     // Middleware to verify JWT Token
-//     function verifyToken(req, res, next) {
-//       const token = req.headers["authorization"];
-//       if (!token) {
-//         return res.status(403).json({ message: "No token provided" });
-//       }
-
-//       jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
-//         if (err) {
-//           return res.status(401).json({ message: "Unauthorized" });
-//         }
-//         req.userId = decoded.id;
-//         next();
-//       });
-//     }
-
-//     // Protected Route Example
-//     app.get("/dashboard", verifyToken, (req, res) => {
-//       res.json({ message: "Welcome to the protected dashboard!" });
-//     });
-
-//     // Existing Routes
-//     app.post("/users", async (req, res) => {
-//       const user = req.body;
-//       const query = { email: user.email };
-//       const existingUser = await usersCollection.findOne(query);
-//       console.log(existingUser);
-//       if (existingUser) {
-//         res.send({ message: "User already exists" });
-//       }
-//       const result = await usersCollection.insertOne(user);
-//       res.send(result);
-//     });
-
-//     app.get("/users", async (req, res) => {
-//       const result = await usersCollection.find().toArray();
-//       res.send(result);
-//     });
-
-//     app.post("/products", async (req, res) => {
-//       const products = req.body;
-//       console.log(products);
-//       const result = await productsCollection.insertOne(products);
-//       res.send(result);
-//     });
-
-//     app.get("/products", async (req, res) => {
-//       const result = await productsCollection.find().toArray();
-//       res.send(result);
-//     });
-
-//     console.log("Pinged your deployment. You successfully connected to MongoDB!");
-//   } finally {
-//     // Do not close the connection in a long-running server
-//   }
-// }
-// run().catch(console.dir);
-
-// app.get("/", (req, res) => {
-//   res.send("Core banking server is running");
-// });
-
-// app.listen(port, () => {
-//   console.log(`Server running on http://localhost:${port}`);
-// });
