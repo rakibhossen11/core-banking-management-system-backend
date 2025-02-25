@@ -42,6 +42,9 @@ async function run() {
     const productsCollection = client
       .db("coreBankingManagement")
       .collection("products");
+    const expensesCollection = client
+      .db("coreBankingManagement")
+      .collection("expenses");
 
     // user related api starts from here
 
@@ -312,6 +315,23 @@ async function run() {
     });
 
     // products related api creation end here
+
+
+     // expenses related api start here
+
+     app.post('/expenses', async (req,res) =>{
+      const body = req.body;
+      console.log(body);
+      const result = await expensesCollection.insertOne(body);
+      res.send(result);
+     });
+
+     app.get('/expenses', async (req,res) => {
+      const expenses = await expensesCollection.find().toArray();
+      res.send(expenses);
+     });
+
+      // expenses related api end here
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
