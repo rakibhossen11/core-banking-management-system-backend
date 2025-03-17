@@ -45,6 +45,9 @@ async function run() {
     const expensesCollection = client
       .db("coreBankingManagement")
       .collection("expenses");
+    const ordersCollection = client
+      .db("coreBankingManagement")
+      .collection("orders");
 
     // user related api starts from here
 
@@ -52,7 +55,7 @@ async function run() {
       try {
         const { clientId, name, email, phone, password } = req.body;
         console.log(clientId, name, email, phone, password);
-    
+
         // Check if user already exists
         const existingUser = await usersCollection.findOne({ email });
         console.log(existingUser);
@@ -67,7 +70,7 @@ async function run() {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        let balance = 0 ;
+        let balance = 0;
 
         // Save user to database
         const newUser = {
@@ -127,8 +130,8 @@ async function run() {
         console.log(clientId, amount, type, description);
 
         // valid transaction type
-        if(!['debit','credit'].includes(type)){
-          return res.status(400).json({ error: 'Invalid transaction type' });
+        if (!["debit", "credit"].includes(type)) {
+          return res.status(400).json({ error: "Invalid transaction type" });
         }
 
         // check if the client exists
@@ -144,25 +147,26 @@ async function run() {
         //   return 0;
         // }
 
-        if(!user){
-
-        }else{
-          const bdTime = moment().tz('Asia/Dhaka').format('DD-MM-YYYY hh:mm A'); // Convert to Bangladeshi time
+        if (!user) {
+        } else {
+          const bdTime = moment().tz("Asia/Dhaka").format("DD-MM-YYYY hh:mm A"); // Convert to Bangladeshi time
           console.log(bdTime);
 
           const updateUser = {
-            $set: {balance: parseFloat(user.balance) + parseFloat(amount) },
-            $push: {transaction: {amount, type, date: bdTime}}
+            $set: { balance: parseFloat(user.balance) + parseFloat(amount) },
+            $push: { transaction: { amount, type, date: bdTime } },
           };
 
           console.log(updateUser);
 
           // update the user in the collection
-          await usersCollection.updateOne({clientId}, updateUser);
+          await usersCollection.updateOne({ clientId }, updateUser);
           // user.balance += amount;
           // user.transaction.push({ amount, date: bdTime, })
         }
-        res.status(200).json({ message: "Transaction successful!", updateUser });
+        res
+          .status(200)
+          .json({ message: "Transaction successful!", updateUser });
       } catch (error) {}
     });
 
@@ -181,22 +185,68 @@ async function run() {
     // ---------------------------------------
     // products related api creation start here
     // add products
+    // app.post("/products", async (req, res) => {
+    //   try {
+    //     const product = req.body;
+    //     console.log(product);
+    //     // if (!product.name || !product.price || !product.quantity) {
+    //     //   return res.status(400).json({ message: "All fields are required" });
+    //     // }
+    //     const result = await productsCollection.insertOne(product);
+    //     res.status(201).json({ message: "Product added succesfully", result });
+    //   } catch (error) {
+    //     res.status(500).json({ message: "server error", error });
+    //   }
+    //   // const products = req.body;
+    //   // console.log(products);
+    //   // const result = await productsCollection.insertOne(products);
+    //   // res.send(result);
+    // });
+
     app.post("/products", async (req, res) => {
       try {
-        const product = req.body;
+        const lastProduct = await productsCollection
+          .find()
+          .sort({ productId: -1 })
+          .limit(1)
+          .toArray();
+        console.log(lastProduct);
+        const lastProductId =
+          lastProduct.length > 0
+            ? parseInt(lastProduct[0].productId, 10)
+            : 10000;
+        console.log(lastProduct);
+        const newProductId = lastProductId + 1;
+        console.log(newProductId);
+
+        const product = {
+          ...req.body,
+          productId: newProductId,
+          createdAtDate: moment().tz("Asia/Dhaka").format("YYYY-MM-DD"),
+          createdAtTime: moment().tz("Asia/Dhaka").format("HH:mm A"),
+        };
+
         console.log(product);
-        // if (!product.name || !product.price || !product.quantity) {
-        //   return res.status(400).json({ message: "All fields are required" });
-        // }
+
         const result = await productsCollection.insertOne(product);
-        res.status(201).json({ message: "Product added succesfully", result });
+        res.status(201).json({ message: "Product added successfully", result });
       } catch (error) {
-        res.status(500).json({ message: "server error", error });
+        res.status(500).json({ message: "Server error", error });
       }
-      // const products = req.body;
-      // console.log(products);
-      // const result = await productsCollection.insertOne(products);
-      // res.send(result);
+    });
+
+    app.get("/products/by-date", async (req, res) => {
+      try {
+        const { date } = req.query; // Expect date in format YYYY-MM-DD
+        console.log(date);
+        const products = await productsCollection
+          .find({ createdAtDate: { $regex: `^${date}` } })
+          .toArray();
+        console.log(products);
+        res.status(200).json(products);
+      } catch (error) {
+        res.status(500).json({ message: "Server error", error });
+      }
     });
 
     // product details api
@@ -221,10 +271,7 @@ async function run() {
         if (!product) {
         } else {
           // Get current time in Bangladeshi local time (BST)
-          // const bdTime = moment(entry.date)
-          //   .tz("Asia/Dhaka")
-          //   .format("YYYY-MM-DD HH:mm:ss"); // Convert to Bangladeshi time
-          // console.log(bdTime);
+          // const bdTime = moment(entry.date).tz("Asia/Dhaka").format("YYYY-MM-DD"); // Convert to Bangladeshi time
           const updateProduct = {
             $set: { stockQuantity: product.stockQuantity + quantity },
             $push: { buyHistory: {quantity, date: new Date()} },
@@ -250,11 +297,13 @@ async function run() {
         const product = await productsCollection.findOne({ uniqId });
         console.log(product);
 
+        const bdTime = moment(entry.date).tz("Asia/Dhaka").format("YYYY-MM-DD"); // Convert to Bangladeshi time
+
         if (product) {
           if (product.stockQuantity >= quantity) {
             const updateProduct = {
               $set: { stockQuantity: product.stockQuantity - quantity },
-              $push: { sellHistory: { quantity, date: new Date() } },
+              $push: { sellHistory: { quantity, date: bdTime } },
             };
             console.log(updateProduct);
             // update the product in the collection
@@ -316,22 +365,184 @@ async function run() {
 
     // products related api creation end here
 
+    // order related api start from here
+    // app.post("/orders", async (req, res) => {
+    //   try {
+    //     const { orderData } = req.body;
+    //     console.log(orderData.products);
+    //     // Validate products and decrease stock quantities
+    //     for (const order of orderData.products) {
+    //       const id = order.id;
+    //       const product = await productsCollection.findOne({
+    //         productId: id,
+    //       });
+    //       console.log(product.stockQuantity);
+    //       console.log(order.quantity);
+    //       console.log(product.stockQuantity - order.quantity);
+    //       // Decrease stock and add to sell history
+    //       // product.stockQuantity -= order.quantity;
+    //       // product.sellHistory.push({ quantity: order.quantity, date: new Date() })
+    //     }
+    //   } catch (err) {
+    //     res.status(500).json({ message: err.message });
+    //   }
+    // });
+    app.post("/orders", async (req, res) => {
+      try {
+        const { orderData } = req.body;
 
-     // expenses related api start here
+        // Loop through each product in the order
+        for (const order of orderData.products) {
+          console.log(order);
+          const product = await productsCollection.findOne({
+            productId: order.id, // Fix: Use productId instead of id
+          });
+          console.log(product);
 
-     app.post('/expenses', async (req,res) =>{
-      const body = req.body;
-      console.log(body);
-      const result = await expensesCollection.insertOne(body);
+          if (!product) {
+            return res
+              .status(404)
+              .json({ message: `Product ${order.id} not found` });
+          }
+
+          if (product.stockQuantity < order.quantity) {
+            return res
+              .status(400)
+              .json({ message: `Not enough stock for ${product.name}` });
+          }
+
+          const date = moment().tz("Asia/Dhaka").format("YYYY-MM-DD"); //.format("YYYY-MM-DD HH:mm A"); with time
+
+          // Decrease stock and update sell history
+          await productsCollection.updateOne(
+            { productId: product.productId },
+            {
+              $inc: { stockQuantity: -order.quantity }, // Reduce stock
+              $push: {
+                sellHistory: {
+                  quantity: order.quantity,
+                  price: product.sellprice,
+                  date: date,
+                },
+              }, // Add sell history
+            }
+          );
+        }
+
+        const date = moment().tz("Asia/Dhaka").format("YYYY-MM-DD"); //.format("YYYY-MM-DD HH:mm A"); with time
+        // Create the order object with date and time
+        const order = {
+          ...orderData, // Include all order data
+          date: date, // Add the order date and time
+        };
+        const result = await ordersCollection.insertOne(order);
+
+        res.status(200).json({
+          message: "Order processed successfully",
+          orderId: result.insertedId,
+        });
+      } catch (err) {
+        res.status(500).json({ message: err.message });
+      }
+    });
+
+    app.get("/orders", async (req, res) => {
+      try {
+        const result = await ordersCollection.find().toArray();
+        res.send(result);
+      } catch (error) {}
+    });
+    // order related api end from here
+
+    // expenses related api start here
+
+    app.post("/expenses", async (req, res) => {
+      const { type, amount } = req.body;
+      // console.log(body);
+      const date = moment().tz("Asia/Dhaka").format("YYYY-MM-DD"); //.format("YYYY-MM-DD HH:mm A"); with time
+      console.log(date);
+      const expens = { type, amount, date };
+      const result = await expensesCollection.insertOne(expens);
       res.send(result);
-     });
+    });
 
-     app.get('/expenses', async (req,res) => {
-      const expenses = await expensesCollection.find().toArray();
-      res.send(expenses);
-     });
+    //  app.get('/expenses', async (req,res) => {
+    //   const expenses = await expensesCollection.find().toArray();
+    //   res.send(expenses);
+    //  });
 
-      // expenses related api end here
+    //  API for fetch data by month
+    app.get("/expenses", async (req, res) => {
+      try {
+        const { month } = req.query; // e.g., 1 for January, 2 for February
+        const year = moment().tz("Asia/Dhaka").year(); // Current year in BD time
+        console.log(year);
+        console.log(month);
+        if (!month) {
+          return res
+            .status(400)
+            .json({ message: "Month parameter is required" });
+        }
+        // Start and end of the month in Bangladesh timezone
+        const startDate = moment
+          .tz({ year, month: month - 1, day: 1 }, "Asia/Dhaka")
+          .startOf("month")
+          .toDate();
+        const endDate = moment
+          .tz({ year, month: month - 1, day: 1 }, "Asia/Dhaka")
+          .endOf("month")
+          .toDate();
+        console.log(startDate);
+        console.log(endDate);
+
+        // Retrieve data for the given month
+        const expenses = await expensesCollection
+          .find({
+            date: { $gte: startDate, $lte: endDate },
+          })
+          .sort({ date: -1 });
+        console.log(expenses);
+        res.json(expenses);
+      } catch (error) {
+        res.status(500).json({ message: "Server error", error });
+      }
+    });
+
+    app.get("/expenses/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await expensesCollection.findOne(query);
+      res.send(result);
+    });
+
+    app.put("/expenses/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const filter = { _id: new ObjectId(id) };
+        const options = { upsert: true };
+        const body = req.body;
+        const updatedExpens = {
+          $set: body,
+        };
+        const result = await expensesCollection.updateOne(
+          filter,
+          updatedExpens,
+          options
+        );
+        res.send(result);
+      } catch (error) {
+        res.status(500).json({ message: "server error", error });
+      }
+    });
+
+    app.delete("/expenses/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await expensesCollection.deleteOne(query);
+      res.send(result);
+    });
+
+    // expenses related api end here
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
