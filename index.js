@@ -271,10 +271,10 @@ async function run() {
         if (!product) {
         } else {
           // Get current time in Bangladeshi local time (BST)
-          // const bdTime = moment(entry.date).tz("Asia/Dhaka").format("YYYY-MM-DD"); // Convert to Bangladeshi time
+          const bdDate = moment().tz("Asia/Dhaka").format("YYYY-MM-DD"); //.format("YYYY-MM-DD HH:mm A"); with time
           const updateProduct = {
             $set: { stockQuantity: product.stockQuantity + quantity },
-            $push: { buyHistory: {quantity, date: new Date()} },
+            $push: { buyHistory: { quantity, date: bdDate } },
           };
 
           console.log(updateProduct);
@@ -443,6 +443,24 @@ async function run() {
         });
       } catch (err) {
         res.status(500).json({ message: err.message });
+      }
+    });
+
+    app.delete('/orders/delete', async (req, res) => {
+      const { orderIds } = req.body;
+      console.log(orderIds);
+    
+      try {
+        // Convert orderIds (strings) to MongoDB ObjectId
+        // const objectIds = orderIds.map((id) => new ObjectId(id));
+    
+        // Delete orders from MongoDB
+        await ordersCollection.deleteMany({ _id: { $in: orderIds } });
+    
+        res.status(200).json({ message: 'Orders deleted successfully' });
+      } catch (err) {
+        console.error('Error deleting orders:', err);
+        res.status(500).json({ message: 'Failed to delete orders' });
       }
     });
 
