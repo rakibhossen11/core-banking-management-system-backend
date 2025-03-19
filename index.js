@@ -446,29 +446,66 @@ async function run() {
       }
     });
 
-    app.delete('/orders/delete', async (req, res) => {
+    app.put("/orders/update-status", async (req, res) => {
+      const { orderId, status } = req.body;
+      console.log(orderId, status);
+
+      try {
+        // Validate status
+        // if (!['pending', 'confirmed', 'cancelled'].includes(status)) {
+        //   return res.status(400).json({ message: 'Invalid status' });
+        // }
+
+        // Update the order status
+        await ordersCollection.updateOne(
+          { _id: new ObjectId(orderId) },
+          { $set: { status } }
+        );
+
+        res.status(200).json({ message: "Order status updated successfully" });
+      } catch (err) {
+        console.error("Error updating order status:", err);
+        res.status(500).json({ message: "Failed to update order status" });
+      }
+    });
+
+    app.delete("/orders/delete", async (req, res) => {
       const { orderIds } = req.body;
       console.log(orderIds);
-    
+
       try {
         // Convert orderIds (strings) to MongoDB ObjectId
         // const objectIds = orderIds.map((id) => new ObjectId(id));
-    
+
         // Delete orders from MongoDB
         await ordersCollection.deleteMany({ _id: { $in: orderIds } });
-    
-        res.status(200).json({ message: 'Orders deleted successfully' });
+
+        res.status(200).json({ message: "Orders deleted successfully" });
       } catch (err) {
-        console.error('Error deleting orders:', err);
-        res.status(500).json({ message: 'Failed to delete orders' });
+        console.error("Error deleting orders:", err);
+        res.status(500).json({ message: "Failed to delete orders" });
       }
     });
 
     app.get("/orders", async (req, res) => {
+      const { status } = req.query;
+      console.log(status); // Debugging: Log the status query parameter
+
       try {
-        const result = await ordersCollection.find().toArray();
+        let query = {};
+        if (status) {
+          query = { status: status }; // Add status to the query if it exists
+        }
+
+        const result = await ordersCollection.find(query).toArray(); // Filter orders based on the query
+        console.log(result);
         res.send(result);
-      } catch (error) {}
+      } catch (error) {
+        console.error("Error fetching orders:", error); // Log the error for debugging
+        res
+          .status(500)
+          .send({ message: "Internal Server Error", error: error.message });
+      }
     });
     // order related api end from here
 
