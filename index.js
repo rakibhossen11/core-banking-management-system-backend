@@ -8,6 +8,8 @@ const jwt = require("jsonwebtoken");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const moment = require("moment-timezone"); // Import moment-timezone
 const port = process.env.PORT || 5000;
+// utils/tokenGenerator.js
+// import crypto from "crypto";
 
 dotenv.config();
 
@@ -20,7 +22,8 @@ app.use(express.json());
 app.use(bodyParser.json());
 
 const uri =
-  "mongodb+srv://coreBankingManagement:Doiz5Fm03ybZH7Qj@cluster0.0dt9tdk.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
+   "mongodb+srv://coreBankingManagement:Doiz5Fm03ybZH7Qj@cluster0.0dt9tdk.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
+// const uri = process.env.MONGO_URI;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
