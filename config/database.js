@@ -25,6 +25,7 @@ const usersCollection = db.collection("users");
 const customersCollection = db.collection("customers");
 const productsCollection = db.collection("products");
 const ordersCollection = db.collection("orders");
+const expensesCollection = db.collection("expenses");
 // console.log(usersCollection);
 
 const transporter = nodemailer.createTransport({
@@ -35,4 +36,14 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-module.exports = { connectDB, usersCollection, customersCollection, productsCollection, ordersCollection, transporter };
+// const sendVerificationEmail = async (email, token) => {
+//   const verificationUrl = `http://yourwebsite.com/verify-email?token=${token}`;
+//   await transporter.sendMail({
+//     from: '"Your Site" <noreply@yoursite.com>',
+//     to: email,
+//     subject: 'Verify Your Email',
+//     html: `Please click <a href="${verificationUrl}">here</a> to verify your email.`,
+//   });
+// };
+
+module.exports = { connectDB, transporter, usersCollection, customersCollection, productsCollection, ordersCollection, expensesCollection,  };
