@@ -61,9 +61,76 @@ router.post("/login", async (req, res) => {
   res.json({ message: "Login successful" });
 });
 
+// router.get("/", async (req, res) => {
+//   const result = await customersCollection.find().toArray();
+//   res.send(result);
+// });
+
+// routes/customerRoutes.js
+// router.get("/", async (req, res) => {
+//   try {
+//     // const { page = 1, limit = 10, search = "" } = req.query;
+//     const { page = 1, limit = 10, } = req.query;
+//     console.log(page,limit,search);
+//     const skip = (page - 1) * limit;
+
+//     // Build search query
+//     const query = search ? {
+//       $or: [
+//         { name: { $regex: search, $options: "i" } },
+//         { email: { $regex: search, $options: "i" } },
+//         { phone: { $regex: search, $options: "i" } }
+//       ]
+//     } : {};
+//     console.log(query);
+
+//     // Get paginated results
+//     const customers = await customersCollection
+//       .find(query)
+//       .skip(skip)
+//       .limit(parseInt(limit))
+//       .toArray();
+//       console.log(customers);
+
+//     // Get total count
+//     const total = await customersCollection.countDocuments(query);
+//     console.log(total);
+
+//     res.json({
+//       customers,
+//       totalPages: Math.ceil(total / limit),
+//       currentPage: parseInt(page),
+//       totalCustomers: total
+//     });
+
+//   } catch (error) {
+//     res.status(500).json({ error: "Server error" });
+//   }
+// });
+
+// routes/customerRoutes.js
 router.get("/", async (req, res) => {
-  const result = await customersCollection.find().toArray();
-  res.send(result);
+  try {
+    const { page = 1, limit = 10 } = req.query;
+    const skip = (page - 1) * limit;
+
+    const [customers, total] = await Promise.all([
+      customersCollection.find({})
+        .skip(skip)
+        .limit(parseInt(limit))
+        .toArray(),
+      customersCollection.countDocuments({})
+    ]);
+
+    res.status(200).json({
+      customers,
+      totalPages: Math.ceil(total / limit),
+      currentPage: parseInt(page),
+      totalCustomers: total
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 router.get("/:id", async (req, res) => {
@@ -76,12 +143,14 @@ router.get("/:id", async (req, res) => {
 // Search customers by name
 router.get("/search/:name", async (req, res) => {
   try {
-    const { name  } = req.params; // Get the search query from the URL
-    console.log(name);
-    const customers = await customersCollection.find({
-      name: { $regex: name, $options: "i" }, // Case-insensitive search
-    }).toArray(); // Convert MongoDB cursor to an array
-    console.log(customers);
+    const { name } = req.params; // Get the search query from the URL
+    // console.log(name);
+    const customers = await customersCollection
+      .find({
+        name: { $regex: name, $options: "i" }, // Case-insensitive search
+      })
+      .toArray(); // Convert MongoDB cursor to an array
+    // console.log(customers);
     res.status(200).json(customers);
   } catch (error) {
     console.error("Error searching customers:", error);
