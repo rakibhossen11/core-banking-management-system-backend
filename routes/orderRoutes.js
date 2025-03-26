@@ -15,11 +15,11 @@ router.post("/", async (req, res) => {
 
     // Loop through each product in the order
     for (const order of orderData.products) {
-      console.log(order);
+      // console.log(order);
       const product = await productsCollection.findOne({
         productId: order.id, // Fix: Use productId instead of id
       });
-      console.log(product);
+      // console.log(product);
 
       if (!product) {
         return res
@@ -70,7 +70,7 @@ router.post("/", async (req, res) => {
 
 router.put("/update-status", async (req, res) => {
   const { orderId, status } = req.body;
-  console.log(orderId, status);
+  // console.log(orderId, status);
 
   try {
     // Validate status
@@ -86,14 +86,14 @@ router.put("/update-status", async (req, res) => {
 
     res.status(200).json({ message: "Order status updated successfully" });
   } catch (err) {
-    console.error("Error updating order status:", err);
+    // console.error("Error updating order status:", err);
     res.status(500).json({ message: "Failed to update order status" });
   }
 });
 
 router.delete("/delete", async (req, res) => {
   const { orderIds } = req.body;
-  console.log(orderIds);
+  // console.log(orderIds);
 
   try {
     // Convert orderIds (strings) to MongoDB ObjectId
@@ -111,7 +111,7 @@ router.delete("/delete", async (req, res) => {
 
 router.get("/", async (req, res) => {
   const { status } = req.query;
-  console.log(status); // Debugging: Log the status query parameter
+  // console.log(status); // Debugging: Log the status query parameter
 
   try {
     let query = {};
@@ -120,7 +120,7 @@ router.get("/", async (req, res) => {
     }
 
     const result = await ordersCollection.find(query).toArray(); // Filter orders based on the query
-    console.log(result);
+    // console.log(result);
     res.send(result);
   } catch (error) {
     console.error("Error fetching orders:", error); // Log the error for debugging

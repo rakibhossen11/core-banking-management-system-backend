@@ -8,6 +8,7 @@ const products = require("./routes/productRoutes");
 const orders = require("./routes/orderRoutes");
 const customers = require("./routes/customerRoutes");
 const expenses = require("./routes/expensesRoutes");
+const transaction = require("./routes/transactionRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -26,6 +27,7 @@ app.use("/customers",customers);
 app.use("/products",products);
 app.use("/orders",orders);
 app.use("/expenses",expenses);
+app.use("/trxn",transaction);
 
 // Search customers by name
 app.get("/customers/search", async (req, res) => {

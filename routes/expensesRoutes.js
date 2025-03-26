@@ -24,8 +24,8 @@ router.get("/month", async (req, res) => {
   try {
     const { month } = req.query; // e.g., 1 for January, 2 for February
     const year = moment().tz("Asia/Dhaka").year(); // Current year in BD time
-    console.log(year);
-    console.log(month);
+    // console.log(year);
+    // console.log(month);
     if (!month) {
       return res.status(400).json({ message: "Month parameter is required" });
     }
@@ -38,8 +38,8 @@ router.get("/month", async (req, res) => {
       .tz({ year, month: month - 1, day: 1 }, "Asia/Dhaka")
       .endOf("month")
       .toDate();
-    console.log(startDate);
-    console.log(endDate);
+    // console.log(startDate);
+    // console.log(endDate);
 
     // Retrieve data for the given month
     const expenses = await expensesCollection
@@ -47,7 +47,7 @@ router.get("/month", async (req, res) => {
         date: { $gte: startDate, $lte: endDate },
       })
       .sort({ date: -1 });
-    console.log(expenses);
+    // console.log(expenses);
     res.json(expenses);
   } catch (error) {
     res.status(500).json({ message: "Server error", error });
