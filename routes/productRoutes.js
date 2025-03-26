@@ -14,12 +14,12 @@ router.post("/", async (req, res) => {
       .sort({ productId: -1 })
       .limit(1)
       .toArray();
-    console.log(lastProduct);
+    // console.log(lastProduct);
     const lastProductId =
       lastProduct.length > 0 ? parseInt(lastProduct[0].productId, 10) : 10000;
     console.log(lastProduct);
     const newProductId = lastProductId + 1;
-    console.log(newProductId);
+    // console.log(newProductId);
 
     const product = {
       ...req.body,
@@ -28,7 +28,7 @@ router.post("/", async (req, res) => {
       createdAtTime: moment().tz("Asia/Dhaka").format("HH:mm A"),
     };
 
-    console.log(product);
+    // console.log(product);
 
     const result = await productsCollection.insertOne(product);
     res.status(201).json({ message: "Product added successfully", result });
@@ -45,7 +45,7 @@ router.get("/by-date", async (req, res) => {
     const products = await productsCollection
       .find({ createdAtDate: { $regex: `^${date}` } })
       .toArray();
-    console.log(products);
+    // console.log(products);
     res.status(200).json(products);
   } catch (error) {
     res.status(500).json({ message: "Server error", error });
@@ -56,7 +56,7 @@ router.get("/by-date", async (req, res) => {
 router.get("/:id", async (req, res) => {
   try {
     const id = req.params.id;
-    console.log(id);
+    // console.log(id);
 
     // Check if the ID is a valid ObjectId
     if (!ObjectId.isValid(id)) {
@@ -86,11 +86,11 @@ router.get("/:id", async (req, res) => {
 router.post("/buy", async (req, res) => {
   try {
     const { uniqId, quantity } = req.body;
-    console.log(uniqId, quantity);
+    // console.log(uniqId, quantity);
     const product = await productsCollection.findOne({ uniqId });
-    console.log("Before", product.stockQuantity);
-    console.log("middle", product.stockQuantity + 10);
-    console.log("After", parseInt(product.stockQuantity) + 30);
+    // console.log("Before", product.stockQuantity);
+    // console.log("middle", product.stockQuantity + 10);
+    // console.log("After", parseInt(product.stockQuantity) + 30);
 
     if (!product) {
     } else {
@@ -101,7 +101,7 @@ router.post("/buy", async (req, res) => {
         $push: { buyHistory: { quantity, date: bdDate } },
       };
 
-      console.log(updateProduct);
+      // console.log(updateProduct);
 
       // update the product in the collection
       await productsCollection.updateOne({ uniqId }, updateProduct);
@@ -119,7 +119,7 @@ router.post("/sell", async (req, res) => {
   try {
     const { uniqId, quantity } = req.body;
     const product = await productsCollection.findOne({ uniqId });
-    console.log(product);
+    // console.log(product);
 
     const bdTime = moment(entry.date).tz("Asia/Dhaka").format("YYYY-MM-DD"); // Convert to Bangladeshi time
 
@@ -129,7 +129,7 @@ router.post("/sell", async (req, res) => {
           $set: { stockQuantity: product.stockQuantity - quantity },
           $push: { sellHistory: { quantity, date: bdTime } },
         };
-        console.log(updateProduct);
+        // console.log(updateProduct);
         // update the product in the collection
         await productsCollection.updateOne({ uniqId }, updateProduct);
         product.stockQuantity -= quantity; // Decrease stock quantity
@@ -151,17 +151,17 @@ router.post("/sell", async (req, res) => {
 router.put("/update/:id", async (req, res) => {
   try {
     const id = req.params.id;
-    console.log(id);
+    // console.log(id);
     const filter = { _id: new ObjectId(id) };
     const options = { upsert: true };
-    console.log(filter);
+    // console.log(filter);
     const body = req.body;
-    console.log(body);
+    // console.log(body);
     //   console.log(product);
     const updatedProduct = {
       $set: body,
     };
-    console.log(updatedProduct);
+    // console.log(updatedProduct);
 
     //   // Update the product in the collection
     const result = await productsCollection.updateOne(

@@ -61,6 +61,193 @@ router.post("/login", async (req, res) => {
   res.json({ message: "Login successful" });
 });
 
+// routes/customerRoutes.js
+router.get("/", async (req, res) => {
+  try {
+    const { page = 1, limit = 10 } = req.query;
+    const skip = (page - 1) * limit;
+
+    const [customers, total] = await Promise.all([
+      customersCollection.find({})
+        .skip(skip)
+        .limit(parseInt(limit))
+        .toArray(),
+      customersCollection.countDocuments({})
+    ]);
+
+    res.status(200).json({
+      customers,
+      totalPages: Math.ceil(total / limit),
+      currentPage: parseInt(page),
+      totalCustomers: total
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get("/customerId", async (req, res) => {
+  const {customerId} = req.body;
+  console.log(customerId);
+  // const query = { _id: new ObjectId(id) };
+  // const result = await customersCollection.findOne(query);
+  // res.send(result);
+});
+
+router.get("/:id", async (req, res) => {
+  const id = req.params.id;
+  const query = { _id: new ObjectId(id) };
+  const result = await customersCollection.findOne(query);
+  res.send(result);
+});
+
+// Search customers by name
+router.get("/search/:name", async (req, res) => {
+  try {
+    const { name } = req.params; // Get the search query from the URL
+    // console.log(name);
+    const customers = await customersCollection
+      .find({
+        name: { $regex: name, $options: "i" }, // Case-insensitive search
+      })
+      .toArray(); // Convert MongoDB cursor to an array
+    // console.log(customers);
+    res.status(200).json(customers);
+  } catch (error) {
+    console.error("Error searching customers:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// user transaction api
+router.post("/transaction", async (req, res) => {
+  try {
+    const { transaction } = req.body;
+    console.log(transaction);
+    const { customerId, amount, type, description } = transaction;
+    // console.log(customerId, amount, type, description);
+
+    // Validate transaction type
+    if (!["withdraw", "deposit"].includes(type)) {
+      return res.status(400).json({ error: "Invalid transaction type" });
+    }
+
+    // Check if the customer exists
+    const customer = await customersCollection.findOne({ customerId });
+    // console.log(customer);
+
+    if (!customer) {
+      return res.status(400).json({ error: "Customer not found!" });
+    }
+
+    // Initialize balance to 0 if it doesn't exist
+    if (
+      customer.balance === null ||
+      customer.balance === NaN ||
+      customer.balance === undefined
+    ) {
+      customer.balance = 0;
+    }
+
+    // Convert to Bangladeshi time
+    const bdTime = moment().tz("Asia/Dhaka").format("DD-MM-YYYY hh:mm A");
+    // console.log(bdTime);
+
+    // Calculate the new balance based on the transaction type
+    let newBalance;
+    if (type === "deposit") {
+      newBalance = parseFloat(customer.balance) + parseFloat(amount);
+    } else if (type === "withdraw") {
+      newBalance = parseFloat(customer.balance) - parseFloat(amount);
+    }
+
+    // Update the customer document
+    const updateCustomer = {
+      $set: { balance: newBalance },
+      $push: {
+        transactions: {
+          trxId: Math.floor(Date.now() + Math.random() * 100000),
+          amount,
+          type,
+          date: bdTime,
+          description,
+          currentBalance: newBalance, // Add currentBalance field to the transaction
+        },
+      },
+      // $push: { transactions: { amount, type, date: bdTime, description } },
+    };
+
+    console.log(updateCustomer);
+
+    // Update the customer in the collection
+    await customersCollection.updateOne({ customerId }, updateCustomer);
+
+    // Send success response
+    res
+      .status(200)
+      .json({ message: "Transaction successful!", updateCustomer });
+  } catch (error) {
+    console.error("Error processing transaction:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// router.put("/:_id/transactions/:tnxId", async(req,res) =>{
+//   try {
+//     const {_id , tnxId } = req.params;
+//     const updatedTransaction = req.body;
+//     console.log(_id , tnxId );
+//     console.log(updatedTransaction );
+//     // Validate IDs
+//     // if (!ObjectId.isValid(_id)) {
+//     //   return res.status(400).json({ error: 'Invalid customer ID' });
+//     // }
+//     // if (!ObjectId.isValid(tnxId)) {
+//     //   return res.status(400).json({ error: 'Invalid transaction ID' });
+//     // }
+//     // Update the transaction in the customer's transaction array
+//     const result = await customersCollection.updateOne(
+//       { _id: new ObjectId(_id), "transactions.tnxId": tnxId }, // Match customer & transaction
+//       { 
+//         $set: { 
+//           "transactions.$.amount": updatedTransaction.amount, 
+//           "transactions.$.date": updatedTransaction.date 
+//         } 
+//       }
+//     );
+//     console.log(result);
+//     // const result = await customersCollection.findOne(query);
+//     // const result = await customersCollection.updateOne(
+//     //   { 
+//     //     _id: new ObjectId(_id),
+//     //     // 'transactions.txnId': new ObjectId(tnxId)
+//     //   },
+//     //   // { 
+//     //   //   $set: { 
+//     //   //     'transactions.$': updatedTransaction,
+//     //   //     balance: updatedTransaction.currentBalance || 0
+//     //   //   } 
+//     //   // }
+//     // );
+//     console.log(result);
+//   } catch (error) {
+    
+//   }
+// })
+
+// Delete a product
+
+
+router.delete("/users/:id", async (req, res) => {
+  const id = req.params.id;
+  const query = { _id: new ObjectId(id) };
+  const result = await usersCollection.deleteOne(query);
+  res.send(result);
+});
+
+module.exports = router;
+
+
 // router.get("/", async (req, res) => {
 //   const result = await customersCollection.find().toArray();
 //   res.send(result);
@@ -107,135 +294,3 @@ router.post("/login", async (req, res) => {
 //     res.status(500).json({ error: "Server error" });
 //   }
 // });
-
-// routes/customerRoutes.js
-router.get("/", async (req, res) => {
-  try {
-    const { page = 1, limit = 10 } = req.query;
-    const skip = (page - 1) * limit;
-
-    const [customers, total] = await Promise.all([
-      customersCollection.find({})
-        .skip(skip)
-        .limit(parseInt(limit))
-        .toArray(),
-      customersCollection.countDocuments({})
-    ]);
-
-    res.status(200).json({
-      customers,
-      totalPages: Math.ceil(total / limit),
-      currentPage: parseInt(page),
-      totalCustomers: total
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-router.get("/:id", async (req, res) => {
-  const id = req.params.id;
-  const query = { _id: new ObjectId(id) };
-  const result = await customersCollection.findOne(query);
-  res.send(result);
-});
-
-// Search customers by name
-router.get("/search/:name", async (req, res) => {
-  try {
-    const { name } = req.params; // Get the search query from the URL
-    // console.log(name);
-    const customers = await customersCollection
-      .find({
-        name: { $regex: name, $options: "i" }, // Case-insensitive search
-      })
-      .toArray(); // Convert MongoDB cursor to an array
-    // console.log(customers);
-    res.status(200).json(customers);
-  } catch (error) {
-    console.error("Error searching customers:", error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-// user transaction api
-router.post("/transaction", async (req, res) => {
-  try {
-    const { transaction } = req.body;
-    console.log(transaction);
-    const { customerId, amount, type, description } = transaction;
-    console.log(customerId, amount, type, description);
-
-    // Validate transaction type
-    if (!["withdraw", "deposit"].includes(type)) {
-      return res.status(400).json({ error: "Invalid transaction type" });
-    }
-
-    // Check if the customer exists
-    const customer = await customersCollection.findOne({ customerId });
-    console.log(customer);
-
-    if (!customer) {
-      return res.status(400).json({ error: "Customer not found!" });
-    }
-
-    // Initialize balance to 0 if it doesn't exist
-    if (
-      customer.balance === null ||
-      customer.balance === NaN ||
-      customer.balance === undefined
-    ) {
-      customer.balance = 0;
-    }
-
-    // Convert to Bangladeshi time
-    const bdTime = moment().tz("Asia/Dhaka").format("DD-MM-YYYY hh:mm A");
-    console.log(bdTime);
-
-    // Calculate the new balance based on the transaction type
-    let newBalance;
-    if (type === "deposit") {
-      newBalance = parseFloat(customer.balance) + parseFloat(amount);
-    } else if (type === "withdraw") {
-      newBalance = parseFloat(customer.balance) - parseFloat(amount);
-    }
-
-    // Update the customer document
-    const updateCustomer = {
-      $set: { balance: newBalance },
-      $push: {
-        transactions: {
-          amount,
-          type,
-          date: bdTime,
-          description,
-          currentBalance: newBalance, // Add currentBalance field to the transaction
-        },
-      },
-      // $push: { transactions: { amount, type, date: bdTime, description } },
-    };
-
-    console.log(updateCustomer);
-
-    // Update the customer in the collection
-    await customersCollection.updateOne({ customerId }, updateCustomer);
-
-    // Send success response
-    res
-      .status(200)
-      .json({ message: "Transaction successful!", updateCustomer });
-  } catch (error) {
-    console.error("Error processing transaction:", error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-// Delete a product
-router.delete("/users/:id", async (req, res) => {
-  const id = req.params.id;
-  const query = { _id: new ObjectId(id) };
-  const result = await usersCollection.deleteOne(query);
-  res.send(result);
-});
-
-module.exports = router;
